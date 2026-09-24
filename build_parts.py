@@ -163,7 +163,14 @@ runs = np.split(row, np.where(np.diff(row) > 1)[0] + 1)
 hood_run = min(runs, key=lambda r: 0 if r[0] <= cx_face <= r[-1] else abs((r[0] + r[-1]) / 2 - cx_face))
 col = np.nonzero(person[:, int(cx_face)])[0]
 bys, bxs = np.nonzero(beanie)
+# lowest beanie pixel per column: the real knit edge, sampled every 8 px
+edge = []
+for x in range(int(bxs.min()), int(bxs.max()) + 1, 8):
+    ys_col = np.nonzero(beanie[:, x])[0]
+    if len(ys_col):
+        edge.append([x, int(ys_col.max())])
 metrics = {
+    "beanie_edge": edge,
     "hood_left": int(hood_run[0]), "hood_right": int(hood_run[-1]),
     "hood_top": int(col.min()),
     "beanie_top": int(bys.min()), "beanie_left": int(bxs.min()), "beanie_right": int(bxs.max()),

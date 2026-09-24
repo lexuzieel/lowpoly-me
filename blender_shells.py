@@ -113,20 +113,42 @@ side_cut = cy - b * 0.12
 back_cut = cy + b * 0.05
 
 
-def rim_y(ph):
-    s = math.sin(ph)
-    return side_cut + (front_cut - side_cut) * max(0, s) ** 1.5 + (back_cut - side_cut) * max(0, -s)
+EDGE = M["beanie_edge"]  # [x, lowest knit pixel y] along the photo
+
+
+def edge_y(x):
+    if x <= EDGE[0][0] or x >= EDGE[-1][0]:
+        return None
+    for (x0, y0), (x1, y1) in zip(EDGE, EDGE[1:]):
+        if x0 <= x <= x1:
+            return y0 + (y1 - y0) * (x - x0) / (x1 - x0)
+
+
+def generic_rim(ph):
+    s_ = math.sin(ph)
+    return side_cut + (front_cut - side_cut) * max(0, s_) ** 1.5 + (back_cut - side_cut) * max(0, -s_)
+
+
+def th_for(y):
+    return math.acos(max(-1, min(1, (cy - y) / bb)))
 
 
 K = 6
 rows = [[None] * SEG for _ in range(K)]
 for j, ph in enumerate(phis):
-    th_max = math.acos(max(-1, min(1, (cy - rim_y(ph)) / bb)))
+    y = generic_rim(ph)
+    w = max(0, math.sin(ph)) ** 1.5
+    if w > 0:
+        # front: follow the real knit edge from the mask (fixed-point on the rim's x)
+        for _ in range(3):
+            x = C.x + ba * math.sin(th_for(y)) * math.cos(ph)
+            ey = edge_y(x)
+            if ey is None:
+                break
+            y = ey * w + generic_rim(ph) * (1 - w)
+    th_max = th_for(y)
     for k in range(K):
         rows[k][j] = ell(C, ba, bb, bc, th_max * (k + 1) / K, ph)
-# folded brim: a ring slightly inside and up, gives the knit edge some thickness
-brim = [C + (p - C) * 0.94 + Vector((0, -fh * 0.05, 0)) for p in rows[-1]]
-rows.append(brim)
 grid_mesh("beanie", rows, "beanie")
 
 # hood: bigger shell with a face opening, skirt tucked under the collar
