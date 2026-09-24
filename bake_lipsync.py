@@ -14,7 +14,7 @@ import sys
 import numpy as np
 import soundfile as sf
 
-FPS = 12
+FPS = 50  # fine enough to see single syllables
 src = sys.argv[1] if len(sys.argv) > 1 else "audio/song.mp3"
 name = os.path.splitext(os.path.basename(src))[0]
 sep = f"audio/sep/htdemucs/{name}"
@@ -28,7 +28,7 @@ def mono(path):
 voc, sr = mono(f"{sep}/vocals.wav")
 hop = sr // FPS
 n = len(voc) // hop
-win = np.hanning(hop * 2)
+win = np.hanning(hop * 2)  # 40 ms window
 freqs = np.fft.rfftfreq(hop * 2, 1 / sr)
 low = (freqs > 250) & (freqs < 900)      # F1 region: open vowels, "o/u" dominate
 high = (freqs > 1600) & (freqs < 4000)   # F2 region: "i/e", teeth-showing vowels
@@ -41,12 +41,17 @@ for i in range(n):
     if len(seg) < hop * 2:
         seg = np.pad(seg, (0, hop * 2 - len(seg)))
     spec = np.abs(np.fft.rfft(seg * win)) ** 2
-    db[i] = 10 * np.log10(spec[low | high].sum() + 1e-12)
+    db[i] = 10 * np.log10(spec[low].sum() + 1e-12)  # jaw follows vowels: their energy sits in F1
     ratio[i] = np.log10((spec[high].sum() + 1e-9) / (spec[low].sum() + 1e-9))
 
 loud = np.percentile(db, 97)
 floor = loud - 28
-jaw = np.clip((db - floor) / (loud - floor), 0, 1) ** 1.3
+env = np.clip((db - floor) / (loud - floor), 0, 1)
+# articulation: each syllable should read as its own opening, so boost what rises above the
+# local (~250 ms) average and let the mouth dip between syllables
+k_ = int(0.25 * FPS) | 1
+local = np.convolve(env, np.ones(k_) / k_, mode="same")
+jaw = np.clip(0.55 * env + 1.2 * np.maximum(0, env - 0.8 * local), 0, 1) ** 1.2
 voiced = jaw > 0.08
 r_mid = np.median(ratio[voiced]) if voiced.any() else 0
 r_spread = np.std(ratio[voiced]) + 1e-6 if voiced.any() else 1
@@ -57,7 +62,7 @@ pucker = np.where(voiced, np.clip(-tone, 0, 1) * 0.7, 0)
 jaw = jaw * (1 - 0.35 * wide) * 0.9
 
 for i in range(n):
-    frames.append([round(float(jaw[i]), 2), round(float(wide[i]), 2), round(float(pucker[i]), 2)])
+    frames.append([round(float(jaw[i]), 2), round(float(wide[i]), 1), round(float(pucker[i]), 1)])
 
 # tempo from the instrumental: onset envelope autocorrelation
 inst, _ = mono(f"{sep}/no_vocals.wav")
