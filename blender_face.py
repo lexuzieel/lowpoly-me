@@ -104,7 +104,7 @@ def blink(upper, lower, ring2):
     def fn(i, p):
         if i in up_i:
             tgt = L(up_i[i])
-            return p.lerp(tgt, 0.92) + Vector((0, 0, 2))
+            return p.lerp(tgt, 0.92) + Vector((0, 0, 6))
         if i in r2:
             u = r2[i]
             return p + (L(up_i[u]) - L(u)) * 0.45
@@ -163,9 +163,9 @@ cols, rows = 8, 5
 for r in range(rows + 1):
     for c in range(cols + 1):
         u, v = c / cols - 0.5, r / rows
-        x = mc.x + u * mw * 1.1
-        y = mc.y - mw * 0.12 + v * mw * 0.75
-        d = lip_d - 6 - (1 - (2 * u) ** 2) * mw * 0.25 - v * mw * 0.1
+        x = mc.x + u * mw * 0.7
+        y = mc.y - mw * 0.1 + v * mw * 0.5
+        d = lip_d - mw * 0.12 - (1 - (2 * u) ** 2) * mw * 0.2 - v * mw * 0.15
         cav.append(Vector((x, y, d)))
 cf = [[r * (cols + 1) + c, r * (cols + 1) + c + 1, (r + 1) * (cols + 1) + c + 1, (r + 1) * (cols + 1) + c]
       for r in range(rows) for c in range(cols)]
@@ -176,7 +176,7 @@ teeth = []
 for k in range(7):
     u = k / 6 - 0.5
     x = mc.x + u * mw * 0.62
-    d = lip_d - 5 - (2 * u) ** 2 * mw * 0.12
+    d = lip_d - mw * 0.1 - (2 * u) ** 2 * mw * 0.12
     teeth += [Vector((x, mc.y - mw * 0.05, d)), Vector((x, mc.y + mw * 0.11, d - 1))]
 tf = [[2 * k, 2 * k + 2, 2 * k + 3, 2 * k + 1] for k in range(6)]
 add_mesh("teeth", teeth, tf, flat_mat("Teeth", (0.78, 0.74, 0.66)))
@@ -191,11 +191,14 @@ tex.interpolation = "Closest"
 bsdf = emat.node_tree.nodes.get("Principled BSDF")
 emat.node_tree.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
 
-for name, ci, ring in (("eye_R", 468, [469, 470, 471, 472]), ("eye_L", 473, [474, 475, 476, 477])):
+for name, ci, ring, lids in (("eye_R", 468, [469, 470, 471, 472], R_UP + R_LO),
+                             ("eye_L", 473, [474, 475, 476, 477], L_UP + L_LO)):
     ic = L(ci)
     ir = sum((L(i) - ic).length for i in ring) / 4
     r = ir * 2.1
-    center = Vector((ic.x, ic.y, ic.z - r * 0.95))
+    lid_d = min(L(i).z for i in lids)  # iris depth from MediaPipe is noisy; the lids are reliable
+    print(name, "iris d", round(ic.z, 1), "lid d", round(lid_d, 1), "r", round(r, 1))
+    center = Vector((ic.x, ic.y, lid_d - 3 - r))
     vs, fs, uvs = [], [], []
     seg, ring_n = 12, 8
     for a in range(ring_n + 1):          # latitude from front pole (a=0) to back

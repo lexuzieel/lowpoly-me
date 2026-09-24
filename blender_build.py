@@ -172,7 +172,7 @@ for area in bpy.context.screen.areas:
         sp.shading.type = "SOLID"
         sp.shading.light = "FLAT"
         sp.shading.color_type = "TEXTURE"
-        sp.overlay.show_wireframes = True
+        sp.overlay.show_wireframes = False
         with bpy.context.temp_override(area=area, region=area.regions[-1]):
             bpy.ops.view3d.view_all()
 

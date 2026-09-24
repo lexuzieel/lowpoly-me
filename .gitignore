@@ -6,3 +6,7 @@ __pycache__/
 out/*.png
 out/debug*.jpg
 out/tex_small.jpg
+.env
+audio/sep/
+audio/response.json
+versions/*/song.mp3

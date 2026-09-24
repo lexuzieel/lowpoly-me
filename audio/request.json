@@ -1,0 +1,5 @@
+{
+  "model": "google/lyria-3-pro-preview",
+  "modalities": ["text", "audio"],
+  "messages": [{"role": "user", "content": "A short, catchy lo-fi indie-pop song, about 60-75 seconds long, 100 BPM, warm synths, soft drum machine, snowy winter night mood. Clear, upfront, dry male lead vocal singing in Russian, well articulated, so the lyrics are easy to follow. Theme: a guy in a yellow beanie and black hood, turned into a low-poly 3D character from an old PS1 game, waving hello from inside a little postcard on a snowy night in the city park. Friendly, a bit ironic, nostalgic."}]
+}
