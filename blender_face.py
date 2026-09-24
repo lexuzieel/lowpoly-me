@@ -133,6 +133,41 @@ add_key("blinkR", blink(R_UP, R_LO, R_R2))   # person's right = left side of the
 add_key("blinkL", blink(L_UP, L_LO, L_R2))
 add_key("browsUp", brows_up)
 
+# --- extra visemes for phoneme lip sync ---
+UPPER_OUT = [185, 40, 39, 37, 0, 267, 269, 270, 409]
+up_c = sum((L(i) for i in UPPER_OUT), Vector()) / len(UPPER_OUT)
+lo_c = sum((L(i) for i in LOWER_OUT), Vector()) / len(LOWER_OUT)
+
+
+def upper_up(i, p):
+    """Upper lip lifts: shows the upper teeth (EE, F/V)."""
+    if p.y > mc.y + 2 or i in LOWER_IN or i in LOWER_OUT:
+        return p
+    g = gauss(p, up_c, mw * 0.4)
+    return p + Vector((0, -mw * 0.06, mw * 0.01)) * g
+
+
+def lips_press(i, p):
+    """M/B/P: lips pressed together and rolled in a bit."""
+    g = gauss(p, mc, mw * 0.45)
+    out = p + Vector(((mc.x - p.x) * 0.06, 0, -mw * 0.04)) * g
+    if p.y > mc.y - 2:
+        out += Vector((0, -mw * 0.025, 0)) * gauss(p, lo_c, mw * 0.35)
+    return out
+
+
+def lip_bite(i, p):
+    """F/V: lower lip rides up and back under the upper teeth."""
+    if p.y < mc.y - 2 and i not in LOWER_IN:
+        return p
+    g = 1.0 if (i in LOWER_IN or i in LOWER_OUT) else gauss(p, lo_c, mw * 0.3)
+    return p + Vector((0, -mw * 0.05, -mw * 0.1)) * g
+
+
+add_key("upperUp", upper_up)
+add_key("mbp", lips_press)
+add_key("fv", lip_bite)
+
 
 # --- flat-color helper material ---
 def flat_mat(name, rgb):
@@ -164,9 +199,10 @@ cols, rows = 8, 5
 for r in range(rows + 1):
     for c in range(cols + 1):
         u, v = c / cols - 0.5, r / rows
-        x = mc.x + u * mw * 0.7
+        x = mc.x + u * mw * 0.6
         y = mc.y - mw * 0.1 + v * mw * 0.5
-        d = lip_d - mw * 0.12 - (1 - (2 * u) ** 2) * mw * 0.2 - v * mw * 0.15
+        # edges curl far back so the open jaw never pulls them through the cheeks
+        d = lip_d - mw * 0.12 - (1 - (2 * u) ** 2) * mw * 0.2 - v * mw * 0.15 - (2 * u) ** 4 * mw * 0.35
         cav.append(Vector((x, y, d)))
 cf = [[r * (cols + 1) + c, r * (cols + 1) + c + 1, (r + 1) * (cols + 1) + c + 1, (r + 1) * (cols + 1) + c]
       for r in range(rows) for c in range(cols)]

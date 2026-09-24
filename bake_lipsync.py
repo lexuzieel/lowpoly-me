@@ -1,7 +1,12 @@
-"""Bake visemes from an isolated vocal track -> web/lipsync.json
+"""Bake lip sync from an isolated vocal track -> web/lipsync.json
 
-usage: bake_lipsync.py audio/song.mp3   (expects demucs output in audio/sep/htdemucs/<name>/)
-Frames at FPS: [jawOpen, wide, pucker]; plus bpm and first beat for head bobbing."""
+usage: bake_lipsync.py audio/song.mp3 [--english [lyrics.txt]]
+  expects demucs output in audio/sep/htdemucs/<name>/
+- cues: Rhubarb mouth shapes (A-H, X) with start times: the phonemes
+- frames at FPS: [loudness-driven jaw, wide, pucker], used to scale the cues and as a fallback
+- bpm and first beat, for pose timing and the glow pulse
+Rhubarb's phonetic recognizer works for any language; --english uses its English model (better with lyrics)."""
+import subprocess
 import json
 import os
 import sys
@@ -66,6 +71,24 @@ lag = lags[bpm_range][np.argmax(ac[bpm_range])]
 bpm = 60 * 100 / lag
 phase = np.argmax([onset[p::lag].sum() for p in range(lag)])
 
-out = {"fps": FPS, "bpm": round(float(bpm), 2), "beat0": round(phase / 100, 3), "frames": frames}
+# phonemes -> mouth shapes with Rhubarb (needs 16 kHz mono PCM)
+import torch  # noqa: E402
+import torchaudio  # noqa: E402
+v16 = torchaudio.functional.resample(torch.tensor(voc, dtype=torch.float32), sr, 16000).numpy()
+wav16 = f"audio/{name}_vocals16k.wav"
+sf.write(wav16, v16, 16000, subtype="PCM_16")
+rhubarb = os.path.expanduser("~/opt/Rhubarb-Lip-Sync-1.14.0-Linux/rhubarb")
+cmd = [rhubarb, "-f", "tsv", "--extendedShapes", "GHX", "-q", wav16]
+if "--english" in sys.argv:
+    i = sys.argv.index("--english")
+    cmd += ["-r", "pocketSphinx"]
+    if i + 1 < len(sys.argv):
+        cmd += ["-d", sys.argv[i + 1]]
+else:
+    cmd += ["-r", "phonetic"]
+tsv = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
+cues = [[round(float(t), 3), sh] for t, sh in (ln.split("\t") for ln in tsv.strip().splitlines())]
+
+out = {"fps": FPS, "cues": cues, "bpm": round(float(bpm), 2), "beat0": round(phase / 100, 3), "frames": frames}
 json.dump(out, open("web/lipsync.json", "w"), separators=(",", ":"))
 print(f"{n} frames, bpm {bpm:.1f}, beat0 {phase / 100:.2f}s, voiced {voiced.mean():.0%}")

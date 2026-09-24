@@ -22,7 +22,7 @@ def components(m):
     return [(lab == i).astype(np.uint8) * 255 for i in range(1, n) if stats[i, cv2.CC_STAT_AREA] > 3000]
 
 
-def inflate_mesh(mask, spacing, depth_scale, fill_holes=False):
+def inflate_mesh(mask, spacing, depth_scale, fill_holes=False, strict=True):
     """Triangulate mask with ~spacing px triangles; depth = rounded profile of distance to edge."""
     m = mask.copy()
     if fill_holes:
@@ -76,7 +76,7 @@ def inflate_mesh(mask, spacing, depth_scale, fill_holes=False):
         c = p.mean(0)
         # keep triangle only if it lies inside the mask (centroid + edge midpoints)
         probes = [c] + [(p[i] + p[(i + 1) % 3]) / 2 * 0.8 + c * 0.2 for i in range(3)]
-        if all(mask[int(q[1]), int(q[0])] for q in probes):
+        if all(mask[int(q[1]), int(q[0])] for q in (probes if strict else probes[:1])):
             tris.append([vid(*p[0]), vid(*p[1]), vid(*p[2])])
     return {"verts": verts, "tris": tris}
 
@@ -147,7 +147,7 @@ part_texture("hand", cv2.erode(hand_mask, np.ones((5, 5), np.uint8)) > 0)
 parts["clothes"] = inflate_mesh(clothes, 90, 0.8, fill_holes=True)
 parts["beanie"] = inflate_mesh(beanie, 45, 0.5)
 parts["head"] = inflate_mesh(head, 60, 0.9)
-parts["hand"] = inflate_mesh(hand_mask, 45, 1.2)
+parts["hand"] = inflate_mesh(hand_mask, 30, 1.2, strict=False)  # fine + lenient: no holes in narrow fingers
 
 for k, v in parts.items():
     print(k, len(v["verts"]), "verts", len(v["tris"]), "tris")
