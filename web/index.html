@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Low-poly me</title>
+<style>
+  :root {
+    --bg: #07080b;
+    --card-w: min(380px, calc(100vw - 32px));
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
+  body {
+    display: grid; place-items: center;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    color: #cfd3dc;
+  }
+  #backdrop {
+    position: fixed; inset: -40px;
+    background: url(bg.jpg) center / cover;
+    filter: blur(28px) brightness(.45) saturate(1.2);
+    transform: scale(1.1);
+  }
+  #stage { perspective: 1000px; position: relative; }
+  #card {
+    width: var(--card-w); aspect-ratio: 2 / 3;
+    border-radius: 18px; overflow: hidden; position: relative;
+    background: radial-gradient(120% 80% at 50% 20%, #1b2233 0%, #0b0d14 70%);
+    box-shadow: 0 30px 80px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.08) inset;
+    transform-style: preserve-3d;
+    will-change: transform;
+  }
+  #card canvas {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    image-rendering: pixelated;
+  }
+  #glare {
+    position: absolute; inset: 0; pointer-events: none; mix-blend-mode: screen;
+    background: radial-gradient(60% 45% at var(--gx, 50%) var(--gy, 30%), rgba(255,255,255,.14), transparent 70%);
+  }
+  #label {
+    position: absolute; left: 16px; right: 16px; bottom: 14px;
+    display: flex; justify-content: space-between;
+    font-size: 11px; letter-spacing: .12em; text-transform: uppercase; opacity: .7;
+    pointer-events: none;
+  }
+</style>
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="backdrop"></div>
+<div id="stage">
+  <div id="card">
+    <div id="glare"></div>
+    <div id="label"><span>low-poly me</span><span id="fps">6 fps</span></div>
+  </div>
+</div>
+<script type="module">
+import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+const FPS = 6;            // stop-motion step rate
+const LOW_RES = 260;      // internal render height, PS1-ish
+const card = document.getElementById("card");
+
+const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
+renderer.setPixelRatio(1);
+card.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(30, 2 / 3, 0.05, 20);
+
+// --- PS1 vertex snapping: quantize clip-space positions to a coarse grid ---
+const snapRes = { value: new THREE.Vector2(LOW_RES * 2 / 3, LOW_RES).multiplyScalar(0.5) };
+function ps1Material(map) {
+  const m = new THREE.MeshBasicMaterial({ map, side: THREE.DoubleSide });
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.snapRes = snapRes;
+    sh.vertexShader = "uniform vec2 snapRes;\n" + sh.vertexShader.replace(
+      "#include <project_vertex>",
+      `#include <project_vertex>
+       gl_Position.xy = floor(gl_Position.xy / gl_Position.w * snapRes + 0.5) / snapRes * gl_Position.w;`);
+  };
+  return m;
+}
+
+const texLoader = new THREE.TextureLoader();
+function tex(name) {
+  const t = texLoader.load(`tex_${name}.jpg`);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.magFilter = THREE.NearestFilter;
+  t.minFilter = THREE.NearestFilter;
+  t.generateMipmaps = false;
+  t.flipY = false;
+  return t;
+}
+
+// --- snow: falls in steps too ---
+const SNOW = 140;
+const snowGeo = new THREE.BufferGeometry();
+const snowPos = new Float32Array(SNOW * 3);
+const rnd = (a, b) => a + Math.random() * (b - a);
+for (let i = 0; i < SNOW; i++) snowPos.set([rnd(-0.6, 0.6), rnd(0, 1.2), rnd(-0.5, 0.25)], i * 3);
+snowGeo.setAttribute("position", new THREE.BufferAttribute(snowPos, 3));
+const snow = new THREE.Points(snowGeo, new THREE.PointsMaterial({ color: 0xdde6ff, size: 3, sizeAttenuation: false }));
+scene.add(snow);
+
+// --- character ---
+const rig = {};
+new GLTFLoader().load("me.glb", (gltf) => {
+  const root = gltf.scene;
+  root.traverse((o) => { if (o.isMesh) o.material = ps1Material(tex(o.name)); });
+  scene.add(root);
+
+  const box = new THREE.Box3().setFromObject(root);
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+
+  // head group pivots at the neck, hand pivots at the wrist
+  const byName = (n) => root.getObjectByName(n);
+  const faceBox = new THREE.Box3().setFromObject(byName("face"));
+  const fc = faceBox.getCenter(new THREE.Vector3());
+  rig.head = new THREE.Group();
+  rig.head.position.set(fc.x, faceBox.min.y, fc.z - 0.05);
+  root.add(rig.head);
+  for (const n of ["face", "head", "beanie"]) rig.head.attach(byName(n));
+
+  const handBox = new THREE.Box3().setFromObject(byName("hand"));
+  const hc = handBox.getCenter(new THREE.Vector3());
+  rig.hand = new THREE.Group();
+  rig.hand.position.set(hc.x + 0.03, handBox.min.y, hc.z);
+  root.add(rig.hand);
+  rig.hand.attach(byName("hand"));
+
+  rig.root = root;
+  rig.body = byName("clothes");
+  rig.target = new THREE.Vector3(center.x, center.y + size.y * 0.08, center.z);
+  rig.dist = size.y * 2.1;
+});
+
+// --- cursor tilt (smooth) ---
+const tilt = { x: 0, y: 0, tx: 0, ty: 0 };
+function onMove(cx, cy) {
+  tilt.tx = (cx / innerWidth - 0.5) * 2;
+  tilt.ty = (cy / innerHeight - 0.5) * 2;
+}
+addEventListener("pointermove", (e) => onMove(e.clientX, e.clientY));
+addEventListener("pointerleave", () => { tilt.tx = tilt.ty = 0; });
+
+function resize() {
+  const r = card.getBoundingClientRect();
+  const h = LOW_RES, w = Math.round(LOW_RES * r.width / r.height);
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  snapRes.value.set(w / 2, h / 2);
+}
+addEventListener("resize", resize);
+resize();
+
+// deterministic per-step noise, so every "frame" of the stop-motion holds still
+function hash(n) { const s = Math.sin(n * 127.1) * 43758.5453; return s - Math.floor(s); }
+const jit = (step, k, amp) => (hash(step * 13.7 + k) - 0.5) * 2 * amp;
+
+let lastStep = -1;
+function frame(ms) {
+  requestAnimationFrame(frame);
+  const t = ms / 1000;
+
+  // card follows cursor smoothly: the contrast with the choppy puppet is the point
+  tilt.x += (tilt.tx - tilt.x) * 0.08;
+  tilt.y += (tilt.ty - tilt.y) * 0.08;
+  card.style.transform = `rotateY(${tilt.x * 14}deg) rotateX(${-tilt.y * 12}deg)`;
+  card.style.setProperty("--gx", `${50 + tilt.x * 40}%`);
+  card.style.setProperty("--gy", `${30 + tilt.y * 30}%`);
+
+  if (rig.root) {
+    // camera slides the other way: looking into a box, not at a sticker
+    camera.position.set(rig.target.x - tilt.x * 0.35, rig.target.y + tilt.y * 0.25, rig.target.z + rig.dist);
+    camera.lookAt(rig.target);
+  }
+
+  const step = Math.floor(t * FPS);
+  if (step !== lastStep && rig.root) {
+    lastStep = step;
+    const ts = step / FPS;
+    rig.head.rotation.set(
+      Math.sin(ts * 1.1) * 0.06 + jit(step, 1, 0.012),
+      Math.sin(ts * 0.7) * 0.12 + jit(step, 2, 0.015),
+      Math.sin(ts * 0.9 + 1) * 0.07 + jit(step, 3, 0.012));
+    rig.hand.rotation.set(jit(step, 4, 0.02), 0, Math.sin(ts * 2.4) * 0.22 + jit(step, 5, 0.03));
+    rig.body.rotation.z = Math.sin(ts * 0.8) * 0.015 + jit(step, 6, 0.004);
+    rig.body.scale.setScalar(1 + Math.sin(ts * 1.6) * 0.006);
+
+    const p = snowGeo.attributes.position;
+    for (let i = 0; i < SNOW; i++) {
+      let y = p.getY(i) - 0.035 - hash(i) * 0.03;
+      if (y < 0) y += 1.2;
+      p.setY(i, y);
+      p.setX(i, p.getX(i) + jit(step, i, 0.004));
+    }
+    p.needsUpdate = true;
+  }
+  renderer.render(scene, camera);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+.venv/
+models/
+bridge/
+blender.log
+__pycache__/
+out/*.png
+out/debug*.jpg
+out/tex_small.jpg
