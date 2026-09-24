@@ -95,6 +95,24 @@ kicks = band_onsets(inst, 30, 150, 1.6, 0.18)
 snares = band_onsets(inst, 1500, 5000, 1.8, 0.18)
 print(f"kicks {len(kicks)}, snares {len(snares)}")
 
+# beat grid for the choreography: librosa beats, folded to the half-time feel (~86 BPM for DnB),
+# on the parity and bar offset where the kick energy lands
+import librosa  # noqa: E402
+y22 = librosa.resample(inst.astype(np.float32), orig_sr=sr, target_sr=22050)
+_, beats = librosa.beat.beat_track(y=y22, sr=22050, units="time", start_bpm=172)
+beats = np.asarray(beats, float)
+if np.median(np.diff(beats)) < 0.5:  # fast tempo: dance on every other beat
+    kick_env = librosa.onset.onset_strength(y=y22, sr=22050, fmax=160)
+    kt = librosa.frames_to_time(np.arange(len(kick_env)), sr=22050)
+    at = lambda ts: np.interp(ts, kt, kick_env)  # noqa: E731
+    parity = int(at(beats[1::2]).mean() > at(beats[0::2]).mean())
+    beats = beats[parity::2]
+kick_at = np.interp(beats, librosa.frames_to_time(np.arange(len(librosa.onset.onset_strength(y=y22, sr=22050, fmax=160))), sr=22050),
+                    librosa.onset.onset_strength(y=y22, sr=22050, fmax=160))
+bar0 = int(np.argmax([kick_at[o::4].mean() for o in range(4)]))  # beats[bar0 + 4k] are downbeats
+beats = [round(float(b), 3) for b in beats]
+print(f"dance grid: {len(beats)} beats, period {np.median(np.diff(beats)):.3f}s, bar offset {bar0}")
+
 # phonemes -> mouth shapes with Rhubarb (needs 16 kHz mono PCM)
 import torch  # noqa: E402
 import torchaudio  # noqa: E402
@@ -115,7 +133,7 @@ subprocess.run(cmd, check=True, capture_output=True)  # writing to stdout fails 
 tsv = open(cues_path).read()
 cues = [[round(float(t), 3), sh] for t, sh in (ln.split("\t") for ln in tsv.strip().splitlines())]
 
-out = {"fps": FPS, "cues": cues, "kicks": kicks, "snares": snares, "bpm": round(float(bpm), 2), "beat0": round(phase / 100, 3), "frames": frames}
+out = {"fps": FPS, "cues": cues, "beats": beats, "bar0": bar0, "bpm": round(float(bpm), 2), "beat0": round(phase / 100, 3), "frames": frames}
 dst = sys.argv[sys.argv.index("--out") + 1] if "--out" in sys.argv else "web/lipsync.json"
 json.dump(out, open(dst, "w"), separators=(",", ":"))
 print(f"{n} frames, bpm {bpm:.1f}, beat0 {phase / 100:.2f}s, voiced {voiced.mean():.0%}")
