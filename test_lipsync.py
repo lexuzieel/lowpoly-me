@@ -6,7 +6,7 @@ from playwright.sync_api import sync_playwright
 
 import json
 url = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8000/"
-lang = "en" if "song=en" in url else "ru"
+lang = "2" if "song=2" in url else "1"
 L = json.load(open(f"web/lipsync_{lang}.json"))
 first = next(i / L["fps"] for i, f in enumerate(L["frames"]) if f[0] >= 0.06)  # the voice actually starts
 with sync_playwright() as p:

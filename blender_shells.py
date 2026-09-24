@@ -223,11 +223,11 @@ tv, tf = [], []
 N = 8
 for k in range(N + 1):
     u = k / N - 0.5
-    x = mc.x + u * mw * 0.58
-    arc = (2 * u) ** 2 * mw * 0.06                   # corners sit higher: follows the smile
-    d = lip_d - mw * 0.1 - (2 * u) ** 2 * mw * 0.14
-    notch = mw * 0.012 if k % 2 else 0               # little gaps between teeth on the lower edge
-    tv += [Vector((x, mc.y - mw * 0.06 - arc, d)), Vector((x, mc.y + mw * 0.07 - arc - notch, d - 1))]
+    x = mc.x + u * mw * 0.6
+    arc = (2 * u) ** 2 * mw * 0.02                   # nearly straight row, a hint of the smile
+    d = lip_d - mw * 0.07 - (2 * u) ** 2 * mw * 0.16  # incisors closest to the lips, the row curves back
+    corner = mw * 0.04 * max(0, abs(2 * u) - 0.75) / 0.25  # only the outer ends are rounded off
+    tv += [Vector((x, mc.y - mw * 0.1 - arc + corner, d)), Vector((x, mc.y + mw * 0.1 - arc - corner, d - 1))]
 tf = [[2 * k, 2 * k + 2, 2 * k + 3, 2 * k + 1] for k in range(N)]
 teeth_mat = bpy.data.materials.get("Teeth")
 me = bpy.data.meshes.new("teeth")

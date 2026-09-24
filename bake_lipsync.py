@@ -73,6 +73,28 @@ if "--bpm" in sys.argv:  # autocorrelation can lock onto 2/3 or 3/2 of the tempo
 bpm = 60 * 100 / lag
 phase = np.argmax([onset[p::lag].sum() for p in range(lag)])
 
+# drum hits from the instrumental: kick (low band) and snare (noisy highs) onsets, peak-picked
+def band_onsets(x, lo, hi, k, min_gap):
+    hop_ = sr // 100
+    win_ = np.hanning(hop_ * 4)
+    f_ = np.fft.rfftfreq(hop_ * 4, 1 / sr)
+    band = (f_ >= lo) & (f_ <= hi)
+    n_ = (len(x) - hop_ * 4) // hop_
+    e = np.array([np.log1p(np.abs(np.fft.rfft(x[i * hop_: i * hop_ + hop_ * 4] * win_))[band].sum()) for i in range(n_)])
+    flux = np.maximum(0, np.diff(e, prepend=e[0]))
+    thr = flux.mean() + k * flux.std()
+    hits, last = [], -1e9
+    for i in range(2, len(flux) - 2):
+        if flux[i] > thr and flux[i] == flux[i - 2:i + 3].max() and i - last >= min_gap * 100:
+            hits.append(round(i / 100, 3))
+            last = i
+    return hits
+
+
+kicks = band_onsets(inst, 30, 150, 1.6, 0.18)
+snares = band_onsets(inst, 1500, 5000, 1.8, 0.18)
+print(f"kicks {len(kicks)}, snares {len(snares)}")
+
 # phonemes -> mouth shapes with Rhubarb (needs 16 kHz mono PCM)
 import torch  # noqa: E402
 import torchaudio  # noqa: E402
@@ -93,7 +115,7 @@ subprocess.run(cmd, check=True, capture_output=True)  # writing to stdout fails 
 tsv = open(cues_path).read()
 cues = [[round(float(t), 3), sh] for t, sh in (ln.split("\t") for ln in tsv.strip().splitlines())]
 
-out = {"fps": FPS, "cues": cues, "bpm": round(float(bpm), 2), "beat0": round(phase / 100, 3), "frames": frames}
+out = {"fps": FPS, "cues": cues, "kicks": kicks, "snares": snares, "bpm": round(float(bpm), 2), "beat0": round(phase / 100, 3), "frames": frames}
 dst = sys.argv[sys.argv.index("--out") + 1] if "--out" in sys.argv else "web/lipsync.json"
 json.dump(out, open(dst, "w"), separators=(",", ":"))
 print(f"{n} frames, bpm {bpm:.1f}, beat0 {phase / 100:.2f}s, voiced {voiced.mean():.0%}")
