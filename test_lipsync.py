@@ -8,7 +8,7 @@ import json
 url = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:8000/"
 lang = "2" if "song=2" in url else "1"
 L = json.load(open(f"web/lipsync_{lang}.json"))
-first = next(i / L["fps"] for i, f in enumerate(L["frames"]) if f[0] >= 0.06)  # the voice actually starts
+first = next(i / L["fps"] for i, f in enumerate(L["frames"]) if f[0] >= 0.06 and sum(g[0] > 0.06 for g in L["frames"][i:i + L["fps"]]) > L["fps"] // 3)  # sustained singing, not a stray breath
 with sync_playwright() as p:
     b = p.chromium.launch(channel="chromium", args=["--use-gl=angle", "--use-angle=swiftshader",
                                                     "--autoplay-policy=no-user-gesture-required"])
