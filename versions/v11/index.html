@@ -48,10 +48,9 @@
   }
   #glare {
     position: absolute; inset: 0; pointer-events: none; mix-blend-mode: screen; border-radius: inherit;
-    /* Vista-style sheen: a few faint bands at slightly different angles, each drifting at its own rate */
+    /* Vista-style sheen: two faint broad bands at slightly different angles, each drifting at its own rate */
     background:
       linear-gradient(112deg, transparent calc(var(--g1, 35%) - 16%), rgba(255,255,255,.035) var(--g1, 35%), transparent calc(var(--g1, 35%) + 12%)),
-      linear-gradient(118deg, transparent calc(var(--g2, 55%) - 3%), rgba(255,255,255,.05) var(--g2, 55%), transparent calc(var(--g2, 55%) + 2.5%)),
       linear-gradient(106deg, transparent calc(var(--g3, 20%) - 22%), rgba(190,210,255,.03) var(--g3, 20%), transparent calc(var(--g3, 20%) + 20%)),
       linear-gradient(180deg, rgba(255,255,255,.025), transparent 35%);
   }
@@ -113,7 +112,7 @@ import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
 // body/head step rate; try ?fps=6 for hard stop-motion, ?fps=24 for smooth
 // bumped on every deploy so a cached old asset never mixes with new code
-const BUILD = "20260924101709";
+const BUILD = "20260924101920";
 const asset = (p) => `${p}?v=${BUILD}`;
 const BODY_FPS = Math.max(2, Math.min(60, +new URLSearchParams(location.search).get("fps") || 12));
 const FACE_FPS = 30;      // mouth and eyes
@@ -620,7 +619,6 @@ function frame(ms) {
   tilt.x = cardS.x.x; tilt.y = cardS.y.x;
   tiltEl.style.transform = `rotateY(${tilt.x * 8}deg) rotateX(${-tilt.y * 7}deg)`;
   card.style.setProperty("--g1", `${35 + tilt.x * 40 + tilt.y * 8}%`);
-  card.style.setProperty("--g2", `${58 + tilt.x * 75 - tilt.y * 12}%`);
   card.style.setProperty("--g3", `${22 + tilt.x * 22 + tilt.y * 18}%`);
   const stage = tiltEl.parentElement;
   stage.style.setProperty("--glx", `${-tilt.x * 24}px`);
