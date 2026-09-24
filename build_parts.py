@@ -152,3 +152,21 @@ parts["hand"] = inflate_mesh(hand_mask, 45, 1.2)
 for k, v in parts.items():
     print(k, len(v["verts"]), "verts", len(v["tris"]), "tris")
 json.dump(parts, open("out/parts.json", "w"))
+
+# --- measurements for the 3D shells (hood / beanie / skull) ---
+fp = np.array(face["points"])[:, :2] * [W, H]
+eye_y = int(fp[168][1])
+cx_face = (fp[234][0] + fp[454][0]) / 2
+row = np.nonzero(person[eye_y])[0]
+# contiguous run of the person mask around the face at eye level = hood width
+runs = np.split(row, np.where(np.diff(row) > 1)[0] + 1)
+hood_run = min(runs, key=lambda r: 0 if r[0] <= cx_face <= r[-1] else abs((r[0] + r[-1]) / 2 - cx_face))
+col = np.nonzero(person[:, int(cx_face)])[0]
+bys, bxs = np.nonzero(beanie)
+metrics = {
+    "hood_left": int(hood_run[0]), "hood_right": int(hood_run[-1]),
+    "hood_top": int(col.min()),
+    "beanie_top": int(bys.min()), "beanie_left": int(bxs.min()), "beanie_right": int(bxs.max()),
+}
+json.dump(metrics, open("out/metrics.json", "w"))
+print(metrics)

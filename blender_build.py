@@ -138,7 +138,7 @@ cx = sum(v[0] for v in fv) / len(fv)
 cy = sum(v[1] for v in fv) / len(fv)
 uvs = [v[:2] for v in fv]
 ring = {}
-for layer, (grow, back) in enumerate([(1.06, 90), (1.10, 220)]):
+for layer, (grow, back) in enumerate([(1.03, 45), (1.05, 110)]):  # short: the skull fills the rest
     new = {}
     for i in bverts:
         src = ring.get(i, i) if layer else i

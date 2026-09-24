@@ -41,6 +41,7 @@ def smoothstep(a, b, x):
 def add_key(name, fn):
     """fn(index, p) -> new pixel-space position."""
     kb = ob.shape_key_add(name=name, from_mix=False)
+    kb.value = 0  # Blender 5 creates new keys at 1.0
     for i, p in enumerate(base):
         kb.data[i].co = to_bl(fn(i, p))
     return kb
