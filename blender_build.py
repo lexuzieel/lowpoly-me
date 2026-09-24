@@ -31,6 +31,7 @@ def photo_material(name, path):
     tex = nt.nodes.new("ShaderNodeTexImage")
     tex.image = img
     tex.interpolation = "Closest"
+    tex.extension = "EXTEND"  # geometry past the photo edge repeats the edge pixels
     emit = nt.nodes.new("ShaderNodeEmission")
     out = nt.nodes.new("ShaderNodeOutputMaterial")
     nt.links.new(tex.outputs["Color"], emit.inputs["Color"])

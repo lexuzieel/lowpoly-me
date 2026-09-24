@@ -24,6 +24,7 @@ def components(m):
 
 def inflate_mesh(mask, spacing, depth_scale, fill_holes=False, strict=True):
     """Triangulate mask with ~spacing px triangles; depth = rounded profile of distance to edge."""
+    H, W = mask.shape  # masks may be padded past the photo edge
     m = mask.copy()
     if fill_holes:
         cnts, _ = cv2.findContours(m, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
@@ -144,10 +145,19 @@ eyes[y0:y1, x0:x1] = filled
 cv2.imwrite("out/tex_eyes.jpg", eyes)
 part_texture("hand", cv2.erode(hand_mask, np.ones((5, 5), np.uint8)) > 0)
 
-parts["clothes"] = inflate_mesh(clothes, 90, 0.8, fill_holes=True)
+# Hand and jacket touch the photo's right/bottom edge: continue them past it by repeating the edge,
+# so a tilted card shows them running out of frame instead of a cut. UVs past 1.0 clamp to the edge pixels.
+PAD = 260
+
+
+def pad_rb(m):
+    return cv2.copyMakeBorder(m, 0, PAD, 0, PAD, cv2.BORDER_REPLICATE)
+
+
+parts["clothes"] = inflate_mesh(pad_rb(clothes), 90, 0.8, fill_holes=True)
 parts["beanie"] = inflate_mesh(beanie, 45, 0.5)
 parts["head"] = inflate_mesh(head, 60, 0.9)
-parts["hand"] = inflate_mesh(hand_mask, 30, 1.2, strict=False)  # fine + lenient: no holes in narrow fingers
+parts["hand"] = inflate_mesh(pad_rb(hand_mask), 30, 1.2, strict=False)  # fine + lenient: no holes in narrow fingers
 
 for k, v in parts.items():
     print(k, len(v["verts"]), "verts", len(v["tris"]), "tris")

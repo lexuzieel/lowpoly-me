@@ -13,3 +13,5 @@ versions/*/song.mp3
 audio/*_vocals16k.wav
 audio/vocals16k.wav
 audio/cues.tsv
+audio/*_cues.tsv
+audio/*.log

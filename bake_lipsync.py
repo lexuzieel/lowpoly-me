@@ -1,6 +1,6 @@
 """Bake lip sync from an isolated vocal track -> web/lipsync.json
 
-usage: bake_lipsync.py audio/song.mp3 [--english [lyrics.txt]]
+usage: bake_lipsync.py audio/song.mp3 [--english [lyrics.txt]] [--out web/lipsync.json]
   expects demucs output in audio/sep/htdemucs/<name>/
 - cues: Rhubarb mouth shapes (A-H, X) with start times: the phonemes
 - frames at FPS: [loudness-driven jaw, wide, pucker], used to scale the cues and as a fallback
@@ -68,6 +68,8 @@ ac = np.correlate(onset, onset, "full")[len(onset) - 1:]
 lags = np.arange(len(ac))
 bpm_range = (lags >= 100 * 60 / 160) & (lags <= 100 * 60 / 70)
 lag = lags[bpm_range][np.argmax(ac[bpm_range])]
+if "--bpm" in sys.argv:  # autocorrelation can lock onto 2/3 or 3/2 of the tempo; let the caller pin it
+    lag = int(round(100 * 60 / float(sys.argv[sys.argv.index("--bpm") + 1])))
 bpm = 60 * 100 / lag
 phase = np.argmax([onset[p::lag].sum() for p in range(lag)])
 
@@ -78,17 +80,20 @@ v16 = torchaudio.functional.resample(torch.tensor(voc, dtype=torch.float32), sr,
 wav16 = f"audio/{name}_vocals16k.wav"
 sf.write(wav16, v16, 16000, subtype="PCM_16")
 rhubarb = os.path.expanduser("~/opt/Rhubarb-Lip-Sync-1.14.0-Linux/rhubarb")
-cmd = [rhubarb, "-f", "tsv", "--extendedShapes", "GHX", "-q", wav16]
+cues_path = f"audio/{name}_cues.tsv"
+cmd = [rhubarb, "-f", "tsv", "--extendedShapes", "GHX", wav16, "-o", cues_path]
 if "--english" in sys.argv:
     i = sys.argv.index("--english")
     cmd += ["-r", "pocketSphinx"]
-    if i + 1 < len(sys.argv):
+    if i + 1 < len(sys.argv) and not sys.argv[i + 1].startswith("--"):
         cmd += ["-d", sys.argv[i + 1]]
 else:
     cmd += ["-r", "phonetic"]
-tsv = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
+subprocess.run(cmd, check=True, capture_output=True)  # writing to stdout fails with the English model
+tsv = open(cues_path).read()
 cues = [[round(float(t), 3), sh] for t, sh in (ln.split("\t") for ln in tsv.strip().splitlines())]
 
 out = {"fps": FPS, "cues": cues, "bpm": round(float(bpm), 2), "beat0": round(phase / 100, 3), "frames": frames}
-json.dump(out, open("web/lipsync.json", "w"), separators=(",", ":"))
+dst = sys.argv[sys.argv.index("--out") + 1] if "--out" in sys.argv else "web/lipsync.json"
+json.dump(out, open(dst, "w"), separators=(",", ":"))
 print(f"{n} frames, bpm {bpm:.1f}, beat0 {phase / 100:.2f}s, voiced {voiced.mean():.0%}")

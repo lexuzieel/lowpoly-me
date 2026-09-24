@@ -203,33 +203,17 @@ bmesh.ops.delete(bm, geom=kill, context="FACES")
 bm.to_mesh(cl.data)
 bm.free()
 
-# --- hand: smaller (selfie perspective), closer to the chest; forearm in a sleeve ---
+# --- hand: anchored where it leaves the frame (bottom-right), a bit smaller than the selfie made it ---
 hand = bpy.data.objects["hand"]
 hp = [to_px(v.co) for v in hand.data.vertices]
-hcen = sum(hp, Vector()) / len(hp)
-hbot = max(p.y for p in hp)
-wrist = Vector((hcen.x, hcen.y + (hbot - hcen.y) * 0.55, hcen.z))
-chest_d = max(to_px(v.co).z for v in cl.data.vertices)
-shift = Vector((-120, -110, chest_d + 40 - hcen.z))
+wrist = Vector((W + 150, H + 120, sum(p.z for p in hp) / len(hp)))  # off-screen: the arm comes from there
+# nudge it into the card: the photo edge it was cut at stays inside the hidden margin (edges are padded)
+nudge = Vector((-135, -75, 0))
 for v, p in zip(hand.data.vertices, hp):
-    v.co = to_bl(wrist + (p - wrist) * 0.72 + shift)
-wrist = wrist + shift
-hw = (max(p.x for p in hp) - min(p.x for p in hp)) * 0.72
-r0 = hw * 0.28
-direction = Vector((0.35, 1.0, 0.55)).normalized()   # down, right and toward the camera
-rows = []
-for k, (t, r) in enumerate(((-0.08, r0 * 0.95), (0.3, r0 * 1.15), (0.7, r0 * 1.3), (1.2, r0 * 1.45))):
-    center = wrist + direction * (t * hw * 1.6)
-    side = direction.cross(Vector((0, 0, 1))).normalized()
-    up = side.cross(direction).normalized()
-    rows.append([center + (side * math.cos(2 * math.pi * j / 10) + up * math.sin(2 * math.pi * j / 10)) * r
-                 for j in range(10)])
-arm = grid_mesh("arm", rows, "clothes", close_top=False)
-# sleeve samples a plain patch of the jacket (front projection would smear the logo along it)
-uvl = arm.data.uv_layers[0]
-for li, loop in enumerate(arm.data.loops):
-    vi = loop.vertex_index
-    uvl.data[li].uv = (0.18 + 0.12 * (vi % 10) / 10, 0.22 + 0.08 * (vi // 10) / 4)
+    v.co = to_bl(p + nudge)
+wrist = wrist + nudge
+hw = max(p.x for p in hp) - min(p.x for p in hp)
+direction = Vector((0.35, 1.0, 0.55)).normalized()
 
 # --- teeth: an arc following the smile, not a slab ---
 mc = (F[61] + F[291]) / 2
