@@ -7,6 +7,7 @@ import json
 import math
 import os
 
+import bmesh
 import bpy
 from mathutils import Vector
 from mathutils.kdtree import KDTree
@@ -136,37 +137,46 @@ hc = c * 1.25
 HC = Vector((hcx, cy, cd - c * 0.05))
 open_l, open_r = M["beanie_left"] - a * 0.08, M["beanie_right"] + a * 0.08
 open_t, open_b = M["beanie_top"] - fh * 0.02, chin + fh * 0.08
-rows = []
-for i in range(1, 9):
-    th = math.pi * 0.62 * i / 8
-    rows.append([ell(HC, ha, hb, hc, th, ph) for ph in phis])
 neck_y = chin + fh * 0.2
-for y, sc, dz in ((neck_y, 0.9, -0.05), (chin + fh * 0.55, 1.1, -0.1)):
-    rows.append([Vector((HC.x + (p.x - HC.x) * sc, y, HC.z + (p.z - HC.z) * sc + dz * hc)) for p in rows[-1]])
-hood = grid_mesh("hood", rows, "clothes")
-# cut the face opening: drop front-facing quads inside the opening ellipse
-me = hood.data
-ox, oy = (open_l + open_r) / 2, (open_t + open_b) / 2
-orx, ory = (open_r - open_l) / 2, (open_b - open_t) / 2
-import bmesh  # noqa: E402
-bm = bmesh.new()
-bm.from_mesh(me)
-kill = []
-for f in bm.faces:
-    cen = to_px(f.calc_center_median())
-    fwd = cen.z > HC.z + hc * 0.62
-    if fwd and ((cen.x - ox) / orx) ** 2 + ((cen.y - oy) / ory) ** 2 < 1:
-        kill.append(f)
-bmesh.ops.delete(bm, geom=kill, context="FACES")
-bm.to_mesh(me)
-bm.free()
+# Pole of the shell points at the camera: the face opening is simply the first ring,
+# a clean oval following the beanie and the jaw, instead of quads cut out of a sphere.
+HSEG = 20
+hphis = [2 * math.pi * j / HSEG for j in range(HSEG)]
 
+
+def hood_pt(al, ph):
+    p = HC + Vector((ha * math.sin(al) * math.cos(ph), hb * math.sin(al) * math.sin(ph), hc * math.cos(al)))
+    if p.y > cy:  # lower half hangs further down and tucks under the collar
+        p.y = cy + (p.y - cy) * 1.75
+        p.z -= (p.y - chin) * 0.25 if p.y > chin else 0  # hem slopes back into the collar
+    return p
+
+
+def rim_alpha(ph):
+    ro = math.hypot(orx * math.cos(ph), ory * math.sin(ph))
+    rh = math.hypot(ha * math.cos(ph), hb * math.sin(ph))
+    return math.asin(min(0.97, ro / rh))
+
+
+orx, ory = (open_r - open_l) / 2, (open_b - open_t) / 2
+rims = [rim_alpha(ph) for ph in hphis]
+rows = []
+K = 7
+for k in range(K):
+    rows.append([hood_pt(al + (math.pi * 0.97 - al) * k / K, ph) for al, ph in zip(rims, hphis)])
+# folded edge: the rim rolls inward and back, gives the hood a thick lip
+lip = [HC + (p - HC) * 0.9 + Vector((0, 0, -hc * 0.12)) for p in rows[0]]
+rows.insert(0, lip)
+back_pole = hood_pt(math.pi, 0)
+hood = grid_mesh("hood", rows[::-1], "clothes")  # reversed: the back pole closes the shell
+top_i = len(hood.data.vertices) - 1
+hood.data.vertices[top_i].co = to_bl(back_pole)
 # jacket: remove the old flat hood region, the new hood + skirt replaces it
 cl = bpy.data.objects["clothes"]
 bm = bmesh.new()
 bm.from_mesh(cl.data)
 kill = [f for f in bm.faces
-        if (lambda p: p.y < neck_y and abs(p.x - hcx) < ha * 1.05)(to_px(f.calc_center_median()))]
+        if (lambda p: p.y < chin and abs(p.x - hcx) < ha * 1.05)(to_px(f.calc_center_median()))]
 bmesh.ops.delete(bm, geom=kill, context="FACES")
 bm.to_mesh(cl.data)
 bm.free()
