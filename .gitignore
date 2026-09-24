@@ -15,3 +15,4 @@ audio/vocals16k.wav
 audio/cues.tsv
 audio/*_cues.tsv
 audio/*.log
+*.blend1
