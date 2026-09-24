@@ -9,7 +9,7 @@ with sync_playwright() as p:
     errs = []
     pg.on("console", lambda m: errs.append(f"{m.type}: {m.text}") if m.type in ("error", "warning") else None)
     pg.on("pageerror", lambda e: errs.append(f"pageerror: {e}"))
-    pg.goto("http://localhost:8000/", wait_until="networkidle")
+    pg.goto(__import__("os").environ.get("URL", "http://localhost:8000/"), wait_until="networkidle")
     pg.wait_for_timeout(1500)
     if "--tilt" in sys.argv:
         i = sys.argv.index("--tilt")
